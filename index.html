@@ -1,0 +1,172 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- もし <style> が残ってるなら、その “後ろ” に置くと styles.css が勝つぴょん -->
+  <link rel="stylesheet" href="./styles.css" />
+
+  <title>SETLIST MAKER</title>
+</head>
+
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <span class="dot"></span>
+      <span>SETLIST MAKER（仮）</span>
+      <span class="pill">v0.5</span>
+    </div>
+
+    <div class="auth-area">
+      <span id="userStatus" class="user">未ログインぴょん</span>
+      <button class="btn" id="loginBtn">Googleでログイン</button>
+      <button class="btn btn-secondary" id="logoutBtn" disabled>ログアウト</button>
+    </div>
+  </header>
+
+  <!-- ★ アーティスト選択バーを追加 ★ -->
+  <div class="artist-bar">
+    <select id="artistSelect" class="artist-select">
+      <option value="">アーティスト名</option>
+    </select>
+    <button class="btn btn-small" id="addArtistBtn">＋ アーティスト追加</button>
+    <button class="btn btn-secondary btn-small" id="deleteArtistBtn">🗑 このアーティストを削除する</button>
+  </div>
+
+  <div class="card">
+    <div class="section-title">
+      <span>ライブ情報</span>
+      <span class="pill">MVP + Firebase</span>
+    </div>
+
+    <div class="fields">
+      <div>
+        <label class="small">ライブタイトル</label>
+        <input id="liveTitle" type="text" placeholder="例）2025/03/10 下北沢MOSAiC ワンマン など">
+      </div>
+
+      <div>
+        <label class="small">持ち時間（分）</label>
+        <input id="slotMinutes" type="number" min="0" value="30">
+      </div>
+
+      <div>
+        <label class="small">日付</label>
+        <input id="liveDate" type="date">
+      </div>
+    </div>
+
+    <div class="time-bar">
+      <div class="time-pill" id="totalTimePill"><span class="label">合計</span><span id="totalTimeText">0:00</span></div>
+      <div class="time-pill" id="slotTimePill"><span class="label">持ち時間</span><span id="slotTimeText">30:00</span></div>
+      <div class="time-pill" id="diffPill"><span class="label">残り</span><span id="diffText">30:00</span></div>
+    </div>
+    <div class="hint">セットリストを組みながら、<br>時間オーバーをリアルタイムでチェックできるぴょん。</div>
+  </div>
+
+  <div class="lists">
+
+    <!-- 曲ライブラリ -->
+    <div class="list card">
+      <div class="list-header">
+        <span>曲ライブラリ</span>
+        <div class="list-header-actions">
+          <span class="small">ドラッグで並べ替え可ぴょん</span>
+          <button class="btn btn-small" id="saveLibraryBtn">ライブラリを保存</button>
+        </div>
+      </div>
+
+      <div class="add-row">
+        <input id="newSongTitle" type="text" placeholder="新しい曲名">
+        <input id="newSongUrl" type="text" placeholder="音源URL（任意）">
+        <input id="newSongMin" type="number" min="0" placeholder="分">
+        <input id="newSongSec" type="number" min="0" placeholder="秒">
+        <button class="btn btn-small" id="addSongBtn">曲を追加</button>
+      </div>
+
+      <ul id="songLibrary"></ul>
+
+      <div class="hint small">
+        ※ 曲ライブラリの曲は自由に削除できるぴょん（確認ダイアログあり）。<br>
+        ※ URLが登録されている曲は🔗で開けるぴょん。
+      </div>
+    </div>
+
+    <!-- セットリスト -->
+    <div class="list card">
+      <!-- ★修正版ヘッダー -->
+      <div class="list-header setlist-header-grid">
+        <div>
+          <div class="setlist-title">セットリスト</div>
+          <div class="small" style="margin-top:4px;">ドラッグで順番入れ替え可ぴょん</div>
+        </div>
+
+        <div class="setlist-controls">
+          <button class="btn btn-small" id="saveSetlistBtn">このセットを保存</button>
+          <select id="setlistHistory" class="input" style="min-width:220px;">
+            <option value="">保存済みセットリスト…</option>
+          </select>
+          <button class="btn btn-small" id="loadSetlistBtn">読み込み</button>
+          <button class="btn btn-small btn-danger" id="deleteSetlistBtn" title="選択中のセットリストを削除">削除</button>
+        </div>
+      </div>
+
+      <ul id="setlist"></ul>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+        <button class="btn btn-secondary btn-small" id="clearSetlist">セットリストをクリア</button>
+        <button class="btn btn-small" id="exportPdfBtn">PDF書き出し（後で実装）</button>
+      </div>
+
+      <div class="hint">左から曲をドラッグして右側にドロップするとセットリストになるぴょん。</div>
+    </div>
+
+  </div>
+
+  <footer>beta / made with vibe coding 🐇</footer>
+</div>
+
+  <!-- 曲編集モーダル -->
+  <div id="editSongModal" class="modal hidden">
+    <div class="modal-overlay" data-dismiss="edit-song"></div>
+    <div class="modal-body">
+      <div class="modal-header">
+        <div class="modal-title">曲情報を編集</div>
+        <button class="icon-btn" type="button" data-dismiss="edit-song" title="閉じる">✕</button>
+      </div>
+      <form id="editSongForm" class="modal-content">
+        <label class="modal-field">
+          <span>曲名</span>
+          <input id="editSongTitle" type="text" required>
+        </label>
+        <label class="modal-field">
+          <span>長さ (mm:ss)</span>
+          <input id="editSongDuration" type="text" placeholder="3:30" required>
+        </label>
+        <label class="modal-field">
+          <span>音源URL（任意）</span>
+          <input id="editSongUrl" type="url" placeholder="https://">
+        </label>
+        <div id="editSongError" class="modal-error" aria-live="polite"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-small" data-dismiss="edit-song">キャンセル</button>
+          <button type="submit" class="btn btn-small">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SortableJS（D&D用）※先に読み込む -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <!-- アプリ本体 -->
+  <script src="./app.js"></script>
+
+  <!-- Firebase（モジュール） -->
+  <script type="module" src="./firebase.js"></script>
+</body>
+</html>
+
