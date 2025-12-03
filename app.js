@@ -122,6 +122,25 @@ function renderSongLibraryFromData(items = []) {
   updateEmptyPlaceholders();
 }
 
+function enforceArtistEmptyState() {
+  const noArtists = artistNames.length === 0;
+  if (!noArtists || isApplyingArtistEmptyState) return false;
+
+  const hasLibraryItems = !!songLibraryEl?.querySelector('.song-item');
+  const hasSetlistItems = !!setlistEl?.querySelector('.song-item');
+  const hasSelection    = !!(currentArtist || setlistHistoryEl?.value);
+  if (!hasLibraryItems && !hasSetlistItems && !hasSelection) return false;
+
+  isApplyingArtistEmptyState = true;
+  currentArtist = '';
+  if (songLibraryEl) songLibraryEl.innerHTML = '';
+  if (setlistEl) setlistEl.innerHTML = '';
+  if (setlistHistoryEl) setlistHistoryEl.value = '';
+  recalcTimes(); // 残り時間などを即座に0リセット
+  isApplyingArtistEmptyState = false;
+  return true;
+}
+
 function updateEmptyPlaceholders() {
   const ensurePlaceholder = (listEl, message) => {
     if (!listEl) return;
@@ -138,11 +157,15 @@ function updateEmptyPlaceholders() {
       existing.remove();
     }
   };
+  const noArtists = artistNames.length === 0;
+  if (artistEmptyHintEl) {
+    artistEmptyHintEl.style.display = noArtists ? 'block' : 'none';
+  }
+  if (noArtists) {
+    enforceArtistEmptyState();
+  }
   ensurePlaceholder(songLibraryEl, '曲ライブラリに曲を追加してください');
   ensurePlaceholder(setlistEl, 'セットリストに曲を追加してください');
-  if (artistEmptyHintEl) {
-    artistEmptyHintEl.style.display = artistNames.length === 0 ? 'block' : 'none';
-  }
 }
 
 function saveLocalState() {
@@ -342,6 +365,7 @@ const EMPTY_PLACEHOLDER_CLASS = 'empty-hint';
 const LOCAL_STATE_KEY = 'setlistMakerState';
 let hasLocalStateLoaded = false;
 let lastLoadedDraftArtist = '';
+let isApplyingArtistEmptyState = false;
 
 if (!artistEmptyHintEl && artistBarEl) {
   artistEmptyHintEl = document.createElement('div');
@@ -609,6 +633,8 @@ let cachedSetlists = [];
 let currentArtist  = '';
 let artistNames    = [];
 let artistDocIds   = {};
+let artistMeta     = {}; // name -> { createdAt?: number }
+let lastAddedArtistName = '';
 let editingSongLi  = null;
 
 window.__getCurrentArtist = () => currentArtist;
@@ -620,7 +646,9 @@ function renderArtistSelect() {
 
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = 'アーティスト名';
+  placeholder.textContent = artistNames.length === 0
+    ? 'アーティストを追加してください'
+    : 'アーティストを選択';
   artistSelectEl.appendChild(placeholder);
 
   artistNames.forEach(name => {
@@ -718,14 +746,21 @@ async function refreshArtistsFromFirestore() {
   try {
     const list = await window.loadArtistsForCurrentUser();
     artistDocIds = {};
+    artistMeta = {};
     list.forEach(a => {
       const name = (a.name || '').trim();
       if (name) artistDocIds[name] = a.id;
+      const ts = typeof a.createdAt?.seconds === 'number'
+        ? a.createdAt.seconds
+        : (typeof a.createdAt?._seconds === 'number' ? a.createdAt._seconds : null);
+      if (name) artistMeta[name] = { createdAt: ts };
     });
   } catch (e) {
     artistDocIds = {};
+    artistMeta = {};
   }
   rebuildArtistsFromSetlists();
+  await ensureDefaultArtistSelected();
 }
 
 function rebuildArtistsFromSetlists() {
@@ -742,6 +777,28 @@ function rebuildArtistsFromSetlists() {
   updateEmptyPlaceholders();
 }
 
+function resolveLastAddedArtist() {
+  let latestName = '';
+  let latestTs = -Infinity;
+  Object.entries(artistMeta || {}).forEach(([name, meta]) => {
+    const ts = typeof meta?.createdAt === 'number' ? meta.createdAt : null;
+    if (ts !== null && ts > latestTs) {
+      latestTs = ts;
+      latestName = name;
+    }
+  });
+  if (latestName) return latestName;
+  if (lastAddedArtistName && artistNames.includes(lastAddedArtistName)) return lastAddedArtistName;
+  return artistNames[artistNames.length - 1] || '';
+}
+
+async function ensureDefaultArtistSelected() {
+  if (currentArtist || artistNames.length === 0) return;
+  const pick = resolveLastAddedArtist();
+  if (!pick) return;
+  await setCurrentArtistAndSync(pick);
+}
+
 // Firestore から履歴取得
 async function refreshSetlistHistory() {
   if (!window.loadSetlistsForCurrentUser) return;
@@ -755,6 +812,7 @@ async function refreshSetlistHistory() {
   if (currentArtist && !hasLocalStateLoaded) {
     autoLoadSetlistForCurrentArtist();
   }
+  await ensureDefaultArtistSelected();
 }
 
 // モジュール側から呼べるようにする
@@ -766,8 +824,10 @@ window.__clearSetlistHistory = () => {
 window.__refreshArtists = refreshArtistsFromFirestore;
 window.__clearArtists = () => {
   artistDocIds = {};
+  artistMeta = {};
   artistNames = [];
   currentArtist = '';
+  lastAddedArtistName = '';
   renderArtistSelect();
   saveLocalState();
 };
@@ -839,11 +899,13 @@ if (addArtistBtn) {
     if (savedId) {
       artistDocIds[trimmed] = savedId;
     }
+    artistMeta[trimmed] = { createdAt: Date.now() / 1000 };
 
     if (!artistNames.includes(trimmed)) {
       artistNames.push(trimmed);
       artistNames.sort((a, b) => a.localeCompare(b, 'ja'));
     }
+    lastAddedArtistName = trimmed;
     await setCurrentArtistAndSync(trimmed);
   });
 }
