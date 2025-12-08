@@ -233,6 +233,15 @@ async function saveSetlistForUser(uid, payload) {
   return docRef.id;
 }
 
+async function updateSetlistForUser(uid, setlistId, payload) {
+  const docRef = doc(db, "users", uid, "setlists", setlistId);
+  await setDoc(docRef, {
+    ...payload,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  return true;
+}
+
 async function saveDraftSetlistForUser(uid, payload) {
   const artist = (payload.artist || "default").trim() || "default";
   const docId = `draft__${artist}`;
@@ -316,6 +325,10 @@ window.deleteArtistForCurrentUser = async (artistId) => {
 window.saveSetlistForCurrentUser = async (payload) => {
   if (!auth.currentUser) throw new Error("not-auth");
   return saveSetlistForUser(auth.currentUser.uid, payload);
+};
+window.updateSetlistForCurrentUser = async (setlistId, payload) => {
+  if (!auth.currentUser) throw new Error("not-auth");
+  return updateSetlistForUser(auth.currentUser.uid, setlistId, payload);
 };
 window.saveDraftSetlistForCurrentUser = async (payload) => {
   if (!auth.currentUser) throw new Error("not-auth");
