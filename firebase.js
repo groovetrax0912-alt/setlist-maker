@@ -143,7 +143,7 @@ async function loadSongsForUser(uid, artistName = "") {
       li.innerHTML = `
         <div class="song-main">
           <div class="song-title"></div>
-          <div class="song-meta">${safeUrl ? "Firestore / URLあり" : "Firestore"}</div>
+          <div class="song-meta"></div>
         </div>
         <div class="song-right">
           ${safeUrl ? '<button class="icon-btn link-btn" title="音源を開く">🔗</button>' : ''}
@@ -372,7 +372,6 @@ onAuthStateChanged(auth, (user) => {
     window.__saveLocalState?.();
   }
 });
-
 
 
 
