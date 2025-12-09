@@ -43,10 +43,45 @@ function buildAutoLiveTitle(title = '', date = '') {
 // firebase.js からも使う
 window.formatTime = formatTime;
 
+function escapeHtml(str = '') {
+  return (str || '').replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      default: return ch;
+    }
+  });
+}
+
+function formatSetlistNumber(idx = 0) {
+  return `M-${String(idx + 1).padStart(2, '0')}`;
+}
+
+function updateSetlistNumbers() {
+  if (!setlistEl) return;
+  const items = setlistEl.querySelectorAll('.song-item');
+  items.forEach((li, idx) => {
+    const base = (li.dataset.baseTitle || li.querySelector('.song-title')?.textContent || '').trim();
+    const titleEl = li.querySelector('.song-title');
+    if (titleEl) {
+      titleEl.innerHTML = '';
+      const num = document.createElement('span');
+      num.className = 'setlist-num';
+      num.textContent = formatSetlistNumber(idx);
+      titleEl.appendChild(num);
+      titleEl.appendChild(document.createTextNode(` ${base}`));
+    }
+  });
+}
+
 // 合計時間や残り時間を計算
 function recalcTimes() {
   const setlistEl = document.getElementById('setlist');
   const items = setlistEl.querySelectorAll('.song-item');
+  updateSetlistNumbers();
   let totalSec = 0;
   items.forEach(item => {
     const d = parseInt(item.dataset.duration || '0', 10);
@@ -84,6 +119,7 @@ function createSongLi({ title = '', durationSec = 0, url = '', metaLabel = 'Cust
   const li = document.createElement('li');
   li.className = 'song-item';
   li.dataset.duration = String(durationSec || 0);
+  li.dataset.baseTitle = title || '';
   const safeUrl = normalizeUrl(url);
   if (safeUrl) li.dataset.url = safeUrl;
   if (source) li.dataset.source = source;
@@ -180,7 +216,7 @@ function updateEmptyPlaceholders() {
 function saveLocalState() {
   if (!window.localStorage) return;
   const libraryItems = Array.from(songLibraryEl.querySelectorAll('.song-item')).map((li, idx) => ({
-    title: li.querySelector('.song-title')?.textContent || '',
+    title: li.dataset.baseTitle || li.querySelector('.song-title')?.textContent || '',
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
     source: li.dataset.source || '',
@@ -190,7 +226,7 @@ function saveLocalState() {
   }));
 
   const setlistItems = Array.from(setlistEl.querySelectorAll('.song-item')).map(li => ({
-    title: li.querySelector('.song-title')?.textContent || '',
+    title: li.dataset.baseTitle || li.querySelector('.song-title')?.textContent || '',
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
     artist: li.dataset.artist || ''
@@ -249,6 +285,7 @@ function applySongEdits(li, { title, durationSec, url }) {
   const safeUrl = normalizeUrl(url);
   const listId = li.parentElement?.id;
 
+  li.dataset.baseTitle = title;
   if (titleEl) titleEl.textContent = title;
   li.dataset.duration = String(durationSec);
 
@@ -449,7 +486,7 @@ window.__renderSongLibraryFromData = renderSongLibraryFromData;
 
 function getLibraryItemsWithOrder() {
   return Array.from(songLibraryEl.querySelectorAll('.song-item')).map((li, idx) => ({
-    title: li.querySelector('.song-title')?.textContent || '',
+    title: li.dataset.baseTitle || li.querySelector('.song-title')?.textContent || '',
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
     source: li.dataset.source || '',
@@ -1062,7 +1099,7 @@ function getCurrentSetlistPayload() {
   const artist = (currentArtist || artistSelectEl?.value || '').trim();
 
   const items = Array.from(setlistEl.querySelectorAll('.song-item')).map(li => ({
-    title: li.querySelector('.song-title')?.textContent || '',
+    title: li.dataset.baseTitle || li.querySelector('.song-title')?.textContent || '',
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || ''
   })).filter(x => x.title);
@@ -1197,6 +1234,7 @@ function renderSetlistFromData(items = []) {
     });
     setlistEl.appendChild(li);
   });
+  updateSetlistNumbers();
   recalcTimes();
   saveLocalState();
 }
@@ -1309,6 +1347,64 @@ deleteSetlistBtn.addEventListener('click', async () => {
   updateLiveSummaryFromInputs();
   saveLocalState();
 });
+
+function exportSetlistToPdf() {
+  const payload = getCurrentSetlistPayload();
+  if (!payload.items.length) {
+    alert('セットリストが空です');
+    return;
+  }
+  const liveTitle = buildAutoLiveTitle(payload.title, payload.date);
+  const totalSec = payload.items.reduce((sum, item) => sum + (item.durationSec || 0), 0);
+  const dateLabel = payload.date ? payload.date.replace(/-/g, '/') : '未設定';
+
+  const html = `
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title></title>
+        <style>
+          @page { size: A4; margin: 16mm 14mm; }
+          body { font-family: "Helvetica Neue","Arial","Noto Sans JP",sans-serif; margin: 0; color: #1a1a1a; background: #fff; }
+          h1 { font-size: 18px; margin: 0 0 6px; letter-spacing: 0.04em; text-transform: uppercase; }
+          .meta { color: #4b5563; font-size: 12px; margin: 0 0 12px; }
+          ol { margin: 0; padding-left: 0; list-style: none; line-height: 1.2; font-size: 44px; }
+          li { margin: 6px 0; font-weight: 700; }
+          .num { font-size: 20px; font-weight: 700; vertical-align: middle; margin-right: 8px; display: inline-block; min-width: 46px; color: #9ca3af !important; }
+          .footer { margin-top: 12px; font-size: 10px; color: #6b7280; }
+          hr { border: none; border-top: 1px solid #d1d5db; margin: 10px 0 12px; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(liveTitle)}</h1>
+        <div class="meta">
+          日付: ${escapeHtml(dateLabel)} ｜ 持ち時間: ${payload.slotMinutes || 0}分 ｜ 合計: ${formatTime(totalSec)}
+        </div>
+        <hr />
+        <ol>
+          ${payload.items.map((item, idx) => `<li><span class="num">${formatSetlistNumber(idx)}</span>${escapeHtml(item.title || '')}</li>`).join('')}
+        </ol>
+      </body>
+    </html>
+  `;
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('ポップアップがブロックされています。許可して再試行してください。');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  try { win.document.title = ''; } catch (e) { /* no-op */ }
+  win.focus();
+  setTimeout(() => {
+    win.print();
+  }, 200);
+}
+
+if (exportPdfBtn) {
+  exportPdfBtn.addEventListener('click', exportSetlistToPdf);
+}
 
 // ローカル状態を復元（初期表示用）
 loadLocalState();
