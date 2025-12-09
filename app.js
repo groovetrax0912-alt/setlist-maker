@@ -43,6 +43,23 @@ function buildAutoLiveTitle(title = '', date = '') {
 // firebase.js からも使う
 window.formatTime = formatTime;
 
+function parseCompactDuration(input = '') {
+  const raw = (input || '').trim();
+  if (!raw) return null;
+  if (raw.includes(':')) {
+    return parseMmSsToSec(raw);
+  }
+  // 数字のみ: 下2桁を秒、それ以外を分として扱う
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  const secPart = digits.slice(-2);
+  const minPart = digits.slice(0, -2) || '0';
+  const m = parseInt(minPart, 10);
+  const s = parseInt(secPart, 10);
+  if (isNaN(m) || isNaN(s) || s >= 60) return null;
+  return m * 60 + s;
+}
+
 function escapeHtml(str = '') {
   return (str || '').replace(/[&<>"']/g, (ch) => {
     switch (ch) {
@@ -502,8 +519,7 @@ const setlistEl     = document.getElementById('setlist');
 
 const newSongTitleEl= document.getElementById('newSongTitle');
 const newSongUrlEl  = document.getElementById('newSongUrl');
-const newSongMinEl  = document.getElementById('newSongMin');
-const newSongSecEl  = document.getElementById('newSongSec');
+const newSongDurationCompactEl  = document.getElementById('newSongDurationCompact');
 const addSongBtn    = document.getElementById('addSongBtn');
 const saveAllBtn    = document.getElementById('saveAllBtn');
 const editSongModal = document.getElementById('editSongModal');
@@ -804,20 +820,12 @@ document.getElementById('clearSetlist').addEventListener('click', ()=>{
 async function addSong() {
   const title = (newSongTitleEl.value || '').trim();
   const url   = (newSongUrlEl.value || '').trim();
-  const min   = parseInt(newSongMinEl.value || '0', 10);
-  const sec   = parseInt(newSongSecEl.value || '0', 10);
+  const durationRaw = (newSongDurationCompactEl.value || '').trim();
   const artist= (currentArtist || artistSelectEl?.value || '').trim();
 
   if (!title) return alert('曲名を入力してね');
-
-  const safeMin = isNaN(min) || min < 0 ? 0 : min;
-  let safeSec   = isNaN(sec) || sec < 0 ? 0 : sec;
-
-  const extraMin = Math.floor(safeSec / 60);
-  safeSec = safeSec % 60;
-
-  const totalSec = (safeMin + extraMin) * 60 + safeSec;
-  if (totalSec <= 0) return alert('長さ（分・秒）を入力してね');
+  const totalSec = parseCompactDuration(durationRaw);
+  if (totalSec === null || totalSec <= 0) return alert('長さを mm:ss か 0324 のように入力してね');
 
   const li = createSongLi({
     title,
@@ -849,8 +857,7 @@ async function addSong() {
 
   newSongTitleEl.value = '';
   newSongUrlEl.value   = '';
-  newSongMinEl.value   = '';
-  newSongSecEl.value   = '';
+  newSongDurationCompactEl.value = '';
   newSongTitleEl.focus();
   updateEmptyPlaceholders();
   saveLocalState();
@@ -858,9 +865,11 @@ async function addSong() {
 }
 
 addSongBtn.addEventListener('click', addSong);
-newSongSecEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') addSong();
-});
+if (newSongDurationCompactEl) {
+  newSongDurationCompactEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addSong();
+  });
+}
 
 // =========================
 // セットリスト保存 / 読み込み / 削除 UI
