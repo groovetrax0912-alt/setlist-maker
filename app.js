@@ -141,6 +141,7 @@ function enforceArtistEmptyState() {
 
   isApplyingArtistEmptyState = true;
   currentArtist = '';
+  currentLiveId = '';
   if (songLibraryEl) songLibraryEl.innerHTML = '';
   if (setlistEl) setlistEl.innerHTML = '';
   if (setlistHistoryEl) setlistHistoryEl.value = '';
@@ -202,13 +203,42 @@ function saveLocalState() {
     slotMinutes: parseInt(document.getElementById('slotMinutes').value || '0', 10),
     library: libraryItems,
     setlist: setlistItems,
-    selectedSetlistId: setlistHistoryEl.value || ''
+    selectedSetlistId: currentLiveId || setlistHistoryEl.value || '',
+    currentLiveId: currentLiveId || setlistHistoryEl.value || ''
   };
   try {
     localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state));
   } catch (e) {
     console.warn('localStorage save error', e);
   }
+}
+
+function updateLiveSummaryFromInputs() {
+  const titleInput = document.getElementById('liveTitle');
+  const dateInput = document.getElementById('liveDate');
+  const slotInput = document.getElementById('slotMinutes');
+  if (!titleInput || !dateInput || !slotInput) return;
+
+  const rawTitle = (titleInput.value || '').trim();
+  const rawDate = (dateInput.value || '').trim();
+  const slot = parseInt(slotInput.value || '0', 10);
+  const displayTitle = (!rawTitle && !rawDate)
+    ? '未設定'
+    : buildAutoLiveTitle(rawTitle, rawDate);
+
+  if (liveTitleDisplayEl) liveTitleDisplayEl.textContent = displayTitle;
+  if (slotMinutesDisplayEl) slotMinutesDisplayEl.textContent = isNaN(slot) ? '0' : String(slot);
+  if (liveDateDisplayEl) liveDateDisplayEl.textContent = rawDate ? rawDate.replace(/-/g, '/') : '未設定';
+}
+
+function applyLiveInfoToUI({ title = '', date = '', slotMinutes = 30 } = {}) {
+  const titleInput = document.getElementById('liveTitle');
+  const dateInput = document.getElementById('liveDate');
+  const slotInput = document.getElementById('slotMinutes');
+  if (titleInput) titleInput.value = title;
+  if (dateInput) dateInput.value = date;
+  if (slotInput) slotInput.value = typeof slotMinutes === 'number' ? slotMinutes : 0;
+  updateLiveSummaryFromInputs();
 }
 
 function applySongEdits(li, { title, durationSec, url }) {
@@ -268,6 +298,22 @@ async function persistSongEditToFirestore(li) {
   }
 }
 
+async function persistLibrarySnapshot() {
+  if (!window.saveLibraryForCurrentUser) return;
+  const artist = (currentArtist || artistSelectEl?.value || '').trim();
+  if (!artist) return;
+  const items = getLibraryItemsWithOrder().map(item => ({
+    ...item,
+    artist: item.artist || artist
+  }));
+  if (!items.length) return;
+  try {
+    await window.saveLibraryForCurrentUser(items);
+  } catch (e) {
+    console.error('ライブラリ保存エラー:', e);
+  }
+}
+
 function showEditSongError(msg = '') {
   if (editSongErrorEl) {
     editSongErrorEl.textContent = msg;
@@ -308,22 +354,40 @@ function showEditLiveInfoError(msg = '') {
   }
 }
 
-function openEditLiveInfoModal() {
+function openLiveInfoModal(mode = 'edit') {
   if (!editLiveInfoModal || !editLiveInfoForm) return;
-  const setlistId = setlistHistoryEl?.value;
-  if (!setlistId) {
-    alert('編集するセットを選んでね');
-    return;
-  }
-  const current = cachedSetlists.find(s => s.id === setlistId);
-  if (!current) {
-    alert('セットが見つかりません');
-    return;
-  }
+  liveInfoModalMode = mode;
+  const isCreate = mode === 'create';
+  const targetId = currentLiveId || setlistHistoryEl?.value;
+  const current = cachedSetlists.find(s => s.id === targetId);
+
   showEditLiveInfoError('');
-  editLiveTitleEl.value   = document.getElementById('liveTitle').value || current.title || '';
-  editLiveDateEl.value    = document.getElementById('liveDate').value  || current.date  || '';
-  editSlotMinutesEl.value = document.getElementById('slotMinutes').value || current.slotMinutes || 0;
+  if (liveInfoModalTitleEl) {
+    liveInfoModalTitleEl.textContent = isCreate ? '新規ライブ情報を追加' : 'ライブ情報を編集';
+  }
+  if (liveInfoSubmitBtn) {
+    liveInfoSubmitBtn.textContent = isCreate ? '作成' : '保存';
+  }
+
+  if (!isCreate) {
+    if (!targetId) {
+      alert('編集するライブ情報を選んでね');
+      return;
+    }
+    if (!current) {
+      alert('ライブ情報が見つかりません');
+      return;
+    }
+  }
+
+  const titleInput = document.getElementById('liveTitle');
+  const dateInput  = document.getElementById('liveDate');
+  const slotInput  = document.getElementById('slotMinutes');
+
+  editLiveTitleEl.value   = titleInput?.value || current?.title || '';
+  editLiveDateEl.value    = dateInput?.value  || current?.date  || '';
+  editSlotMinutesEl.value = slotInput?.value || current?.slotMinutes || 30;
+
   editLiveInfoModal.classList.remove('hidden');
   editLiveTitleEl.focus();
 }
@@ -355,16 +419,21 @@ function loadLocalState() {
       currentArtist = state.currentArtist;
     }
     renderArtistSelect();
-    document.getElementById('liveTitle').value = state.liveTitle || '';
-    document.getElementById('liveDate').value  = state.liveDate  || '';
-    document.getElementById('slotMinutes').value = state.slotMinutes || 0;
+    currentLiveId = state.currentLiveId || state.selectedSetlistId || '';
+    applyLiveInfoToUI({
+      title: state.liveTitle || '',
+      date: state.liveDate || '',
+      slotMinutes: typeof state.slotMinutes === 'number' ? state.slotMinutes : 30
+    });
     renderSongLibraryFromData(state.library || []);
     renderSetlistFromData(state.setlist || []);
     if (!state.selectedSetlistId && (!state.library || state.library.length === 0) && (state.setlist || []).length > 0) {
       setlistEl.innerHTML = '';
       recalcTimes();
     }
-    if (state.selectedSetlistId) {
+    if (state.currentLiveId) {
+      setlistHistoryEl.value = state.currentLiveId;
+    } else if (state.selectedSetlistId) {
       setlistHistoryEl.value = state.selectedSetlistId;
     }
     hasLocalStateLoaded = true;
@@ -406,6 +475,10 @@ const editSongTitleEl = document.getElementById('editSongTitle');
 const editSongDurationEl = document.getElementById('editSongDuration');
 const editSongUrlEl = document.getElementById('editSongUrl');
 const editSongErrorEl = document.getElementById('editSongError');
+const liveTitleDisplayEl = document.getElementById('liveTitleDisplay');
+const slotMinutesDisplayEl = document.getElementById('slotMinutesDisplay');
+const liveDateDisplayEl = document.getElementById('liveDateDisplay');
+const addLiveInfoBtn = document.getElementById('addLiveInfoBtn');
 
 // アーティスト関連 DOM
 const artistSelectEl  = document.getElementById('artistSelect');
@@ -422,6 +495,8 @@ const editLiveDateEl        = document.getElementById('editLiveDate');
 const editSlotMinutesEl     = document.getElementById('editSlotMinutes');
 const editLiveInfoErrorEl   = document.getElementById('editLiveInfoError');
 const editLiveInfoBtn       = document.getElementById('editLiveInfoBtn');
+const liveInfoModalTitleEl  = document.getElementById('liveInfoModalTitle');
+const liveInfoSubmitBtn     = document.getElementById('liveInfoSubmitBtn');
 
 const EMPTY_PLACEHOLDER_CLASS = 'empty-hint';
 const LOCAL_STATE_KEY = 'setlistMakerState';
@@ -462,7 +537,10 @@ if (Sortable && songLibraryEl && setlistEl) {
 }
 
 // 持ち時間変更で再計算
-document.getElementById('slotMinutes').addEventListener('input', recalcTimes);
+document.getElementById('slotMinutes').addEventListener('input', () => {
+  updateLiveSummaryFromInputs();
+  recalcTimes();
+});
 
 // ライブラリ/セットリスト共通：削除アイコン
 document.addEventListener('click', (event) => {
@@ -542,9 +620,12 @@ if (editSongForm) {
 if (editLiveInfoForm) {
   editLiveInfoForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const setlistId = setlistHistoryEl?.value;
-    if (!setlistId) {
-      alert('編集するセットを選んでね');
+    const mode = liveInfoModalMode || 'edit';
+    const artist = (currentArtist || artistSelectEl?.value || '').trim();
+    const setlistId = currentLiveId || setlistHistoryEl?.value;
+
+    if (!artist) {
+      showEditLiveInfoError('アーティストを選択してね');
       return;
     }
     const title = (editLiveTitleEl.value || '').trim();
@@ -557,6 +638,39 @@ if (editLiveInfoForm) {
     }
     if (isNaN(slot) || slot < 0) {
       showEditLiveInfoError('持ち時間を0以上で入力してね');
+      return;
+    }
+
+    if (mode === 'create') {
+      const payload = {
+        title,
+        date,
+        slotMinutes: slot,
+        artist,
+        items: []
+      };
+      let newId = `local-${Date.now()}`;
+      if (window.saveSetlistForCurrentUser) {
+        try {
+          newId = await window.saveSetlistForCurrentUser(payload);
+        } catch (e) {
+          console.error('setlist create error:', e);
+        }
+      }
+      cachedSetlists.unshift({ id: newId, ...payload });
+      renderSetlistHistory();
+      currentLiveId = newId;
+      if (setlistHistoryEl) setlistHistoryEl.value = newId;
+      applyLiveInfoToUI(payload);
+      setlistEl.innerHTML = '';
+      recalcTimes();
+      saveLocalState();
+      closeEditLiveInfoModal();
+      return;
+    }
+
+    if (!setlistId) {
+      showEditLiveInfoError('編集するライブ情報を選んでね');
       return;
     }
 
@@ -575,6 +689,8 @@ if (editLiveInfoForm) {
     }
     renderSetlistHistory();
     setlistHistoryEl.value = setlistId;
+    currentLiveId = setlistId;
+    updateLiveSummaryFromInputs();
     recalcTimes();
     saveLocalState();
 
@@ -701,6 +817,7 @@ async function addSong() {
   newSongTitleEl.focus();
   updateEmptyPlaceholders();
   saveLocalState();
+  await persistLibrarySnapshot();
 }
 
 addSongBtn.addEventListener('click', addSong);
@@ -716,11 +833,13 @@ const setlistHistoryEl = document.getElementById('setlistHistory');
 
 let cachedSetlists = [];
 let currentArtist  = '';
+let currentLiveId  = '';
 let artistNames    = [];
 let artistDocIds   = {};
 let artistMeta     = {}; // name -> { createdAt?: number }
 let lastAddedArtistName = '';
 let editingSongLi  = null;
+let liveInfoModalMode = 'edit';
 
 window.__getCurrentArtist = () => currentArtist;
 
@@ -753,8 +872,11 @@ function renderArtistSelect() {
 
 // セットリスト履歴描画（アーティストでフィルタ）
 function renderSetlistHistory() {
-  setlistHistoryEl.innerHTML = '<option value="">保存済みセットリスト…</option>';
+  setlistHistoryEl.innerHTML = '<option value="">保存済みライブ情報…</option>';
   const list = cachedSetlists.filter(sl => !currentArtist || sl.artist === currentArtist);
+  if (currentLiveId && !list.some(sl => sl.id === currentLiveId)) {
+    currentLiveId = '';
+  }
 
   list.forEach(sl => {
     const opt = document.createElement('option');
@@ -764,6 +886,9 @@ function renderSetlistHistory() {
     opt.textContent = dateStr + title;
     setlistHistoryEl.appendChild(opt);
   });
+  if (currentLiveId && list.some(sl => sl.id === currentLiveId)) {
+    setlistHistoryEl.value = currentLiveId;
+  }
 }
 
 async function loadSongsForArtist(artistName) {
@@ -781,19 +906,22 @@ async function loadSongsForArtist(artistName) {
 }
 
 function resetSetlistUI() {
-  document.getElementById('liveTitle').value = '';
-  document.getElementById('liveDate').value = '';
-  document.getElementById('slotMinutes').value = 30;
+  currentLiveId = '';
+  applyLiveInfoToUI({ title: '', date: '', slotMinutes: 30 });
   setlistEl.innerHTML = '';
   recalcTimes();
   saveLocalState();
 }
 
 function applySetlistToUI(sl) {
-  const autoTitle = buildAutoLiveTitle(sl.title, sl.date);
-  document.getElementById('liveTitle').value = autoTitle;
-  document.getElementById('liveDate').value  = sl.date  || '';
-  document.getElementById('slotMinutes').value = sl.slotMinutes || 0;
+  if (sl.id) {
+    currentLiveId = sl.id;
+  }
+  applyLiveInfoToUI({
+    title: sl.title || '',
+    date: sl.date || '',
+    slotMinutes: typeof sl.slotMinutes === 'number' ? sl.slotMinutes : 30
+  });
   renderSetlistFromData(sl.items || []);
   setlistHistoryEl.value = sl.id || setlistHistoryEl.value;
 }
@@ -811,6 +939,7 @@ function autoLoadSetlistForCurrentArtist() {
     return;
   }
   setlistHistoryEl.value = match.id || '';
+  currentLiveId = match.id || '';
   applySetlistToUI(match);
 }
 
@@ -823,6 +952,9 @@ async function setCurrentArtistAndSync(name, { skipAutoLoad = false } = {}) {
   setlistHistoryEl.value = '';
   saveLocalState();
   updateEmptyPlaceholders();
+  if (!skipAutoLoad) {
+    autoLoadSetlistForCurrentArtist();
+  }
 }
 
 // Firestore からアーティスト一覧を再取得
@@ -887,6 +1019,7 @@ async function ensureDefaultArtistSelected() {
 // Firestore から履歴取得
 async function refreshSetlistHistory() {
   if (!window.loadSetlistsForCurrentUser) return;
+  const prevLiveId = currentLiveId;
   try {
     cachedSetlists = await window.loadSetlistsForCurrentUser();
   } catch (e) {
@@ -894,6 +1027,11 @@ async function refreshSetlistHistory() {
   }
   rebuildArtistsFromSetlists();
   renderSetlistHistory();
+  const filtered = cachedSetlists.filter(sl => !currentArtist || sl.artist === currentArtist);
+  if (prevLiveId && filtered.some(sl => sl.id === prevLiveId)) {
+    currentLiveId = prevLiveId;
+    setlistHistoryEl.value = prevLiveId;
+  }
   await ensureDefaultArtistSelected();
 }
 
@@ -901,7 +1039,8 @@ async function refreshSetlistHistory() {
 window.__refreshSetlistHistory = refreshSetlistHistory;
 window.__clearSetlistHistory = () => {
   cachedSetlists = [];
-  setlistHistoryEl.innerHTML = '<option value="">保存済みセットリスト…</option>';
+  setlistHistoryEl.innerHTML = '<option value="">保存済みライブ情報…</option>';
+  currentLiveId = '';
 };
 window.__refreshArtists = refreshArtistsFromFirestore;
 window.__clearArtists = () => {
@@ -928,7 +1067,7 @@ function getCurrentSetlistPayload() {
     url: li.dataset.url || ''
   })).filter(x => x.title);
 
-  return { title: liveTitle, date: liveDate, slotMinutes, artist, items };
+  return { title: liveTitle, date: liveDate, slotMinutes, artist, items, liveId: currentLiveId || '' };
 }
 
 async function loadDraftForArtist(artistName, { respectLocalFlag = true } = {}) {
@@ -1083,11 +1222,15 @@ async function loadSetlistById(id, { shouldAlertOnEmpty = false } = {}) {
     setlistHistoryEl.value = id;
   }
 
+  currentLiveId = id;
   applySetlistToUI(sl);
 }
 
 if (editLiveInfoBtn) {
-  editLiveInfoBtn.addEventListener('click', openEditLiveInfoModal);
+  editLiveInfoBtn.addEventListener('click', () => openLiveInfoModal('edit'));
+}
+if (addLiveInfoBtn) {
+  addLiveInfoBtn.addEventListener('click', () => openLiveInfoModal('create'));
 }
 
 if (saveAllBtn) {
@@ -1097,17 +1240,12 @@ if (saveAllBtn) {
       alert('アーティストを選択してね');
       return;
     }
-    if (!window.saveLibraryForCurrentUser || !window.saveDraftSetlistForCurrentUser) {
+    if (!window.updateSetlistForCurrentUser) {
       alert('ログインしてから保存してね');
       return;
     }
-
-    const libraryItems = getLibraryItemsWithOrder().map(item => ({
-      ...item,
-      artist: item.artist || artist
-    }));
-    if (!libraryItems.length) {
-      alert('ライブラリに曲がありません');
+    if (!currentLiveId) {
+      alert('ライブ情報を作成・選択してから保存してね');
       return;
     }
 
@@ -1115,23 +1253,20 @@ if (saveAllBtn) {
     const hasSetlistItems = setlistPayload.items.length > 0;
 
     try {
-      const ids = await window.saveLibraryForCurrentUser(libraryItems);
-      const lis = Array.from(songLibraryEl.querySelectorAll('.song-item'));
-      ids.forEach((id, idx) => {
-        const li = lis[idx];
-        if (li && id) {
-          li.dataset.firestoreId = id;
-          li.dataset.source = 'firestore';
-        }
-      });
-
-      if (hasSetlistItems) {
-        await window.saveDraftSetlistForCurrentUser(setlistPayload);
-        lastLoadedDraftArtist = setlistPayload.artist || '';
-        alert('ライブラリとセットリストを保存しました');
+      await window.updateSetlistForCurrentUser(currentLiveId, { ...setlistPayload, liveId: currentLiveId });
+      const cached = cachedSetlists.find(s => s.id === currentLiveId);
+      if (cached) {
+        cached.title = setlistPayload.title;
+        cached.date = setlistPayload.date;
+        cached.slotMinutes = setlistPayload.slotMinutes;
+        cached.items = setlistPayload.items;
+        cached.artist = setlistPayload.artist;
       } else {
-        alert('ライブラリを保存しました（セットリストは空のためスキップ）');
+        cachedSetlists.unshift({ id: currentLiveId, ...setlistPayload });
       }
+      renderSetlistHistory();
+      setlistHistoryEl.value = currentLiveId;
+      alert(hasSetlistItems ? 'ライブ情報を保存しました' : 'ライブ情報を保存しました（セットリストは空です）');
       saveLocalState();
     } catch (e) {
       console.error('保存エラー:', e);
@@ -1158,11 +1293,20 @@ deleteSetlistBtn.addEventListener('click', async () => {
   const ok = window.confirm(`「${name}」を本当に削除しますか？`);
   if (!ok) return;
 
-  await window.deleteSetlistForCurrentUser(id);
+  if (window.deleteSetlistForCurrentUser) {
+    try {
+      await window.deleteSetlistForCurrentUser(id);
+    } catch (e) {
+      console.error('delete setlist error:', e);
+    }
+  }
+  cachedSetlists = cachedSetlists.filter(s => s.id !== id);
   alert('削除しました');
   await refreshSetlistHistory();
+  currentLiveId = '';
   setlistHistoryEl.value = '';
   autoLoadSetlistForCurrentArtist();
+  updateLiveSummaryFromInputs();
   saveLocalState();
 });
 
