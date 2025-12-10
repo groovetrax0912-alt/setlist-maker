@@ -149,7 +149,7 @@ async function loadSongsForUser(uid, artistName = "") {
           ${safeUrl ? '<button class="icon-btn link-btn" title="音源を開く">🔗</button>' : ''}
           <div class="song-duration">${window.formatTime?.(song.durationSec || 0) ?? ""}</div>
           <button class="icon-btn edit-btn" title="この曲を編集">✎</button>
-          <button class="icon-btn delete-btn" title="この曲を削除">🗑</button>
+          <button class="icon-btn delete-btn" title="この曲を削除">✖</button>
         </div>
       `;
       li.querySelector(".song-title").textContent = song.title || "";

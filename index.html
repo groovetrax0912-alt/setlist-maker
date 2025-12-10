@@ -13,12 +13,12 @@
       <div class="brand">
         <span class="dot"></span>
         <span>SETLIST MAKER（仮）</span>
-        <span class="pill">v0.5</span>
+        <span class="pill">v0.6</span>
       </div>
       <div class="auth-area">
         <span id="userStatus" class="user">未ログイン</span>
-        <button class="btn" id="loginBtn">Googleでログイン</button>
-        <button class="btn btn-secondary" id="logoutBtn" disabled>ログアウト</button>
+        <button class="btn" id="loginBtn">🔑 Googleでログイン</button>
+        <button class="btn btn-secondary" id="logoutBtn" disabled>🚪 ログアウト</button>
       </div>
     </header>
 
@@ -26,8 +26,8 @@
       <select id="artistSelect" class="artist-select">
         <option value="">アーティスト名</option>
       </select>
-      <button class="btn btn-small" id="addArtistBtn">＋ アーティスト追加</button>
-      <button class="btn btn-secondary btn-small" id="deleteArtistBtn">このアーティストを削除する</button>
+      <button class="btn btn-small" id="addArtistBtn">➕ アーティスト追加</button>
+      <button class="btn btn-secondary btn-small" id="deleteArtistBtn">🗑️ このアーティストを削除する</button>
     </div>
 
     <div class="lists">
@@ -37,7 +37,7 @@
           <span>曲ライブラリ</span>
           <div class="list-header-actions">
             <span class="small">ドラッグで並べ替え可</span>
-            <button class="btn btn-secondary" id="saveLibraryBtn" title="曲ライブラリの順番や内容を保存">曲ライブラリを保存</button>
+            <button class="btn btn-secondary" id="saveLibraryBtn" title="曲ライブラリの内容を保存">💾 曲ライブラリを保存</button>
           </div>
         </div>
 
@@ -45,14 +45,14 @@
           <input id="newSongTitle" type="text" placeholder="新しい曲名">
           <input id="newSongUrl" type="text" placeholder="音源URL（任意）">
           <input id="newSongDurationCompact" type="text" placeholder="時間（例:0324 や 3:24）">
-          <button class="btn btn-small" id="addSongBtn">曲を追加</button>
+          <button class="btn btn-small" id="addSongBtn">➕ 曲を追加</button>
         </div>
 
         <ul id="songLibrary"></ul>
 
         <div class="hint small">
-          ※ 曲ライブラリの曲は自由に削除できます（確認ダイアログあり）。<br>
-          ※ URLが登録されている曲は🔗で開けます。
+          ※ 曲ライブラリの曲は自由に削除できます（確認ダイアログあり）<br>
+          ※ URLが登録されている曲は🔗で開けます
         </div>
       </div>
 
@@ -60,7 +60,7 @@
         <div class="card setlist-card">
           <div class="section-title">
             <span>ライブ情報</span>
-            <span class="pill">v0.5</span>
+            <span class="pill">v0.6</span>
           </div>
 
           <div class="share-banner hidden" id="sharePreviewBanner">
@@ -69,13 +69,12 @@
 
           <div class="live-controls">
             <select id="setlistHistory" class="input" style="min-width:220px;">
-              <option value="">保存済みライブ情報…</option>
+              <option value="">ライブ情報を選択…</option>
             </select>
             <div class="live-buttons">
-              <button class="btn btn-small" id="addLiveInfoBtn">新規ライブを追加</button>
-              <button class="btn btn-small" id="loadSetlistBtn">読み込み</button>
-              <button class="btn btn-secondary btn-small" id="editLiveInfoBtn" title="選択中のライブ情報を編集">ライブ情報を編集</button>
-              <button class="btn btn-small btn-danger" id="deleteSetlistBtn" title="選択中のライブ情報ごとセットリストを削除">削除</button>
+              <button class="btn btn-small" id="addLiveInfoBtn">🆕 新規ライブを追加</button>
+              <button class="btn btn-secondary btn-small" id="editLiveInfoBtn" title="選択中のライブ情報を編集">✏️ ライブ情報を編集</button>
+              <button class="btn btn-small btn-danger" id="deleteSetlistBtn" title="選択中のライブ情報ごとセットリストを削除">🗑️ 削除</button>
             </div>
           </div>
 
@@ -100,7 +99,7 @@
             <div class="small share-row-label">共有リンク（他ユーザーに見せる用）</div>
             <div class="share-row-main">
               <input id="shareLinkField" type="text" readonly placeholder="曲を追加すると共有リンクを生成できます">
-              <button class="btn btn-secondary btn-small" id="copyShareLinkBtn">リンクをコピー</button>
+              <button class="btn btn-secondary btn-small" id="copyShareLinkBtn">📋 リンクをコピー</button>
             </div>
             <div class="small share-row-hint" id="shareLinkHint">ログイン不要でセットリストのプレビューを共有できます</div>
           </div>
@@ -113,8 +112,8 @@
               <div class="small" style="margin-top:4px;">ドラッグで並べ替えできます</div>
             </div>
             <div class="setlist-controls">
-              <button class="btn btn-secondary btn-small" id="clearSetlist">セットリストをクリア</button>
-              <button class="btn btn-small" id="exportPdfBtn">PDF書き出し</button>
+              <button class="btn btn-secondary btn-small" id="clearSetlist">🧹 セットリストをクリア</button>
+              <button class="btn btn-small" id="exportPdfBtn">🖨️ PDF書き出し</button>
             </div>
           </div>
 
@@ -123,7 +122,7 @@
           <div class="hint">左から曲をドラッグして右側にドロップするとセットリストになります。</div>
 
           <div class="save-inline">
-            <button class="btn" id="saveAllBtn">ライブ情報を保存</button>
+            <button class="btn" id="saveAllBtn">💾 ライブ情報を保存</button>
           </div>
         </div>
       </div>
@@ -138,7 +137,7 @@
     <div class="modal-body">
       <div class="modal-header">
         <div class="modal-title">曲情報を編集</div>
-        <button class="icon-btn" type="button" data-dismiss="edit-song" title="閉じる">✕</button>
+        <button class="icon-btn" type="button" data-dismiss="edit-song" title="閉じる">✁</button>
       </div>
       <form id="editSongForm" class="modal-content">
         <label class="modal-field">
@@ -155,8 +154,8 @@
         </label>
         <div id="editSongError" class="modal-error" aria-live="polite"></div>
         <div class="modal-actions">
-          <button type="button" class="btn btn-secondary btn-small" data-dismiss="edit-song">キャンセル</button>
-          <button type="submit" class="btn btn-small">保存</button>
+          <button type="button" class="btn btn-secondary btn-small" data-dismiss="edit-song">✖️ キャンセル</button>
+          <button type="submit" class="btn btn-small">💾 保存</button>
         </div>
       </form>
     </div>
@@ -168,7 +167,7 @@
     <div class="modal-body">
       <div class="modal-header">
         <div class="modal-title" id="liveInfoModalTitle">ライブ情報を編集</div>
-        <button class="icon-btn" type="button" data-dismiss="edit-live" title="閉じる">✕</button>
+        <button class="icon-btn" type="button" data-dismiss="edit-live" title="閉じる">✁</button>
       </div>
       <form id="editLiveInfoForm" class="modal-content">
         <label class="modal-field">
@@ -185,10 +184,27 @@
         </label>
         <div id="editLiveInfoError" class="modal-error" aria-live="polite"></div>
         <div class="modal-actions">
-          <button type="button" class="btn btn-secondary btn-small" data-dismiss="edit-live">キャンセル</button>
-          <button type="submit" class="btn btn-small" id="liveInfoSubmitBtn">保存</button>
+          <button type="button" class="btn btn-secondary btn-small" data-dismiss="edit-live">✖️ キャンセル</button>
+          <button type="submit" class="btn btn-small" id="liveInfoSubmitBtn">💾 保存</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 音源プレビュー -->
+  <div id="audioPreviewModal" class="modal hidden">
+    <div class="modal-overlay" data-dismiss="audio-preview"></div>
+    <div class="modal-body" style="max-width:840px;">
+      <div class="modal-header">
+        <div class="modal-title" id="audioPreviewTitle">音源プレビュー</div>
+        <button class="icon-btn" type="button" data-dismiss="audio-preview" title="閉じる">✖</button>
+      </div>
+      <div class="modal-content">
+        <div class="hint small">YouTube / Google Drive などのURLを埋め込み再生します。</div>
+        <div class="iframe-wrapper">
+          <iframe id="audioPreviewFrame" src="" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
+        </div>
+      </div>
     </div>
   </div>
 
