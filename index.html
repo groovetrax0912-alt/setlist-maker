@@ -63,6 +63,10 @@
             <span class="pill">v0.5</span>
           </div>
 
+          <div class="share-banner hidden" id="sharePreviewBanner">
+            共有リンクから読み込んだプレビューです。保存する場合は「新規ライブを追加」であなたのセットとして保存してください。
+          </div>
+
           <div class="live-controls">
             <select id="setlistHistory" class="input" style="min-width:220px;">
               <option value="">保存済みライブ情報…</option>
@@ -91,6 +95,15 @@
             <div class="time-pill" id="diffPill"><span class="label">残り</span><span id="diffText">30:00</span></div>
           </div>
           <div class="hint">セットリストを組みながら、時間オーバーをリアルタイムでチェックできます。</div>
+
+          <div class="share-row" id="shareRow">
+            <div class="small share-row-label">共有リンク（他ユーザーに見せる用）</div>
+            <div class="share-row-main">
+              <input id="shareLinkField" type="text" readonly placeholder="曲を追加すると共有リンクを生成できます">
+              <button class="btn btn-secondary btn-small" id="copyShareLinkBtn">リンクをコピー</button>
+            </div>
+            <div class="small share-row-hint" id="shareLinkHint">ログイン不要でセットリストのプレビューを共有できます</div>
+          </div>
 
           <div class="section-divider"></div>
 

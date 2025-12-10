@@ -86,6 +86,27 @@ function formatSetlistNumber(idx = 0) {
   return `M-${String(idx + 1).padStart(2, '0')}`;
 }
 
+function encodeShareToken(data = {}) {
+  try {
+    const json = JSON.stringify(data);
+    return btoa(encodeURIComponent(json));
+  } catch (e) {
+    console.error('共有リンク生成エラー:', e);
+    return '';
+  }
+}
+
+function decodeShareToken(token = '') {
+  if (!token) return null;
+  try {
+    const json = decodeURIComponent(atob(token));
+    return JSON.parse(json);
+  } catch (e) {
+    console.error('共有リンク読み込みエラー:', e);
+    return null;
+  }
+}
+
 function updateSetlistNumbers() {
   if (!setlistEl) return;
   const items = setlistEl.querySelectorAll('.song-item');
@@ -148,6 +169,7 @@ function recalcTimes() {
 
   updateEmptyPlaceholders();
   saveLocalState();
+  updateShareLinkUI();
 }
 
 function removeSetlistEditButtons() {
@@ -209,6 +231,7 @@ function renderSongLibraryFromData(items = []) {
 
 function enforceArtistEmptyState() {
   const noArtists = artistNames.length === 0;
+  if (isSharedPreviewMode) return false;
   if (!noArtists || isApplyingArtistEmptyState) return false;
 
   const hasLibraryItems = !!songLibraryEl?.querySelector('.song-item');
@@ -248,7 +271,9 @@ function updateEmptyPlaceholders() {
     artistEmptyHintEl.style.display = noArtists ? 'block' : 'none';
   }
   if (noArtists) {
-    enforceArtistEmptyState();
+    if (!isSharedPreviewMode) {
+      enforceArtistEmptyState();
+    }
   }
   ensurePlaceholder(songLibraryEl, '曲ライブラリに曲を追加してください');
   ensurePlaceholder(setlistEl, 'セットリストに曲を追加してください');
@@ -274,14 +299,14 @@ function saveLocalState() {
   }));
 
   const state = {
-    currentArtist,
+    currentArtist: isSharedPreviewMode ? sharedPreviewArtist : currentArtist,
     liveTitle: (document.getElementById('liveTitle').value || '').trim(),
     liveDate: (document.getElementById('liveDate').value || '').trim(),
     slotMinutes: parseInt(document.getElementById('slotMinutes').value || '0', 10),
     library: libraryItems,
     setlist: setlistItems,
-    selectedSetlistId: currentLiveId || setlistHistoryEl.value || '',
-    currentLiveId: currentLiveId || setlistHistoryEl.value || ''
+    selectedSetlistId: isSharedPreviewMode ? '' : (currentLiveId || setlistHistoryEl.value || ''),
+    currentLiveId: isSharedPreviewMode ? '' : (currentLiveId || setlistHistoryEl.value || '')
   };
   try {
     localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state));
@@ -306,6 +331,7 @@ function updateLiveSummaryFromInputs() {
   if (liveTitleDisplayEl) liveTitleDisplayEl.textContent = displayTitle;
   if (slotMinutesDisplayEl) slotMinutesDisplayEl.textContent = isNaN(slot) ? '0' : String(slot);
   if (liveDateDisplayEl) liveDateDisplayEl.textContent = rawDate ? rawDate.replace(/-/g, '/') : '未設定';
+  updateShareLinkUI();
 }
 
 function applyLiveInfoToUI({ title = '', date = '', slotMinutes = 30 } = {}) {
@@ -577,6 +603,7 @@ function loadLocalState() {
     updateEmptyPlaceholders();
     return;
   }
+  clearSharePreview();
   const raw = localStorage.getItem(LOCAL_STATE_KEY);
   if (!raw) {
     updateEmptyPlaceholders();
@@ -652,6 +679,10 @@ const liveTitleDisplayEl = document.getElementById('liveTitleDisplay');
 const slotMinutesDisplayEl = document.getElementById('slotMinutesDisplay');
 const liveDateDisplayEl = document.getElementById('liveDateDisplay');
 const addLiveInfoBtn = document.getElementById('addLiveInfoBtn');
+const shareLinkField = document.getElementById('shareLinkField');
+const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
+const shareLinkHintEl = document.getElementById('shareLinkHint');
+const sharePreviewBannerEl = document.getElementById('sharePreviewBanner');
 
 // アーティスト関連 DOM
 const artistSelectEl  = document.getElementById('artistSelect');
@@ -676,6 +707,8 @@ const LOCAL_STATE_KEY = 'setlistMakerState';
 let hasLocalStateLoaded = false;
 let lastLoadedDraftArtist = '';
 let isApplyingArtistEmptyState = false;
+let songLibrarySortable = null;
+let setlistSortable = null;
 
 function updateSaveButtons() {
   if (saveLibraryBtn) saveLibraryBtn.disabled = !libraryDirty;
@@ -690,6 +723,21 @@ function setSetlistDirty(flag = true) {
   updateSaveButtons();
 }
 
+function setDragAndDropEnabled(flag = true) {
+  if (songLibrarySortable) songLibrarySortable.option('disabled', !flag);
+  if (setlistSortable) setlistSortable.option('disabled', !flag);
+}
+
+function clearSharePreview() {
+  isSharedPreviewMode = false;
+  sharedPreviewArtist = '';
+  document.body?.classList.remove('shared-preview');
+  setDragAndDropEnabled(true);
+  if (sharePreviewBannerEl) {
+    sharePreviewBannerEl.classList.add('hidden');
+  }
+}
+
 if (!artistEmptyHintEl && artistBarEl) {
   artistEmptyHintEl = document.createElement('div');
   artistEmptyHintEl.id = 'artistEmptyHint';
@@ -702,7 +750,7 @@ if (!artistEmptyHintEl && artistBarEl) {
 // 曲ライブラリ / セットリスト D&D
 if (Sortable && songLibraryEl && setlistEl) {
   // 曲ライブラリ側
-  Sortable.create(songLibraryEl, {
+  songLibrarySortable = Sortable.create(songLibraryEl, {
     group: { name:'songs', pull:'clone', put:false },
     animation:150,
     sort:true,
@@ -710,7 +758,7 @@ if (Sortable && songLibraryEl && setlistEl) {
   });
 
   // セットリスト側
-  Sortable.create(setlistEl, {
+  setlistSortable = Sortable.create(setlistEl, {
     group: { name:'songs', pull:true, put:true },
     animation:150,
     sort:true,
@@ -950,6 +998,7 @@ document.addEventListener('click', (event) => {
 document.getElementById('clearSetlist').addEventListener('click', ()=>{
   const ok = window.confirm('セットリストを全部クリアしますか？');
   if (!ok) return;
+  clearSharePreview();
   setlistEl.innerHTML = '';
   recalcTimes();
   saveLocalState();
@@ -1032,6 +1081,29 @@ if (saveLibraryBtn) {
   });
 }
 
+if (copyShareLinkBtn) {
+  copyShareLinkBtn.addEventListener('click', async () => {
+    const link = (shareLinkField?.value || '').trim();
+    if (!link) {
+      alert('共有リンクがまだありません');
+      return;
+    }
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        shareLinkField?.focus();
+        shareLinkField?.select();
+        document.execCommand('copy');
+      }
+      updateShareLinkUI('リンクをコピーしました');
+    } catch (e) {
+      console.error('share link copy error', e);
+      alert('コピーに失敗しました。手動で選択してください。');
+    }
+  });
+}
+
 // =========================
 // セットリスト保存 / 読み込み / 削除 UI
 const loadSetlistBtn   = document.getElementById('loadSetlistBtn');
@@ -1049,6 +1121,8 @@ let editingSongLi  = null;
 let liveInfoModalMode = 'edit';
 let libraryDirty   = false;
 let setlistDirty   = false;
+let isSharedPreviewMode = false;
+let sharedPreviewArtist = '';
 
 window.__getCurrentArtist = () => currentArtist;
 
@@ -1115,6 +1189,7 @@ async function loadSongsForArtist(artistName) {
 }
 
 function resetSetlistUI() {
+  clearSharePreview();
   currentLiveId = '';
   applyLiveInfoToUI({ title: '', date: '', slotMinutes: 30 });
   setlistEl.innerHTML = '';
@@ -1124,6 +1199,7 @@ function resetSetlistUI() {
 }
 
 function applySetlistToUI(sl) {
+  clearSharePreview();
   if (sl.id) {
     currentLiveId = sl.id;
   }
@@ -1156,6 +1232,7 @@ function autoLoadSetlistForCurrentArtist() {
 
 async function setCurrentArtistAndSync(name, { skipAutoLoad = false } = {}) {
   currentArtist = (name || '').trim();
+  clearSharePreview();
   renderArtistSelect();
   renderSetlistHistory();
   await loadSongsForArtist(currentArtist);
@@ -1272,7 +1349,9 @@ function getCurrentSetlistPayload() {
   const slotMinutes = parseInt(document.getElementById('slotMinutes').value || '0', 10);
   const liveTitle = buildAutoLiveTitle(liveTitleRaw, liveDate);
 
-  const artist = (currentArtist || artistSelectEl?.value || '').trim();
+  const artist = (isSharedPreviewMode && sharedPreviewArtist)
+    ? sharedPreviewArtist
+    : (currentArtist || artistSelectEl?.value || '').trim();
 
   const items = Array.from(setlistEl.querySelectorAll('.song-item')).map(li => ({
     title: getLiTitleText(li),
@@ -1281,6 +1360,72 @@ function getCurrentSetlistPayload() {
   })).filter(x => x.title);
 
   return { title: liveTitle, date: liveDate, slotMinutes, artist, items, liveId: currentLiveId || '' };
+}
+
+function buildShareLinkFromCurrentState() {
+  const payload = getCurrentSetlistPayload();
+  if (!payload.items || payload.items.length === 0) return '';
+  const token = encodeShareToken({ v: 1, setlist: payload });
+  if (!token) return '';
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('share', token);
+  return url.toString();
+}
+
+function updateShareLinkUI(message = '') {
+  if (!shareLinkField) return;
+  const link = buildShareLinkFromCurrentState();
+  shareLinkField.value = link;
+  if (copyShareLinkBtn) copyShareLinkBtn.disabled = !link;
+  if (shareLinkHintEl) {
+    if (message) {
+      shareLinkHintEl.textContent = message;
+    } else {
+      shareLinkHintEl.textContent = link
+        ? 'リンクをコピーして他のユーザーに共有できます'
+        : 'セットリストを作ると共有リンクが生成されます';
+    }
+  }
+}
+
+function applySharedSetlist(payload = {}) {
+  isSharedPreviewMode = true;
+  sharedPreviewArtist = (payload.artist || '').trim();
+  currentLiveId = '';
+  document.body?.classList.add('shared-preview');
+  setDragAndDropEnabled(false);
+  applyLiveInfoToUI({
+    title: payload.title || '',
+    date: payload.date || '',
+    slotMinutes: typeof payload.slotMinutes === 'number' ? payload.slotMinutes : 30
+  });
+  renderSetlistFromData(payload.items || []);
+  if (sharePreviewBannerEl) {
+    sharePreviewBannerEl.classList.remove('hidden');
+  }
+  if (setlistHistoryEl) {
+    setlistHistoryEl.value = '';
+  }
+  setSetlistDirty(false);
+  setLibraryDirty(false);
+  updateShareLinkUI();
+}
+
+function tryApplySharedSetlistFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('share');
+  if (!token) return false;
+
+  const decoded = decodeShareToken(token);
+  const payload = decoded?.setlist || decoded?.payload || decoded;
+  if (!payload || !Array.isArray(payload.items)) {
+    updateShareLinkUI('共有リンクの読み込みに失敗しました');
+    return false;
+  }
+  applySharedSetlist(payload);
+  return true;
 }
 
 async function loadDraftForArtist(artistName, { respectLocalFlag = true } = {}) {
@@ -1587,6 +1732,7 @@ if (exportPdfBtn) {
 
 // ローカル状態を復元（初期表示用）
 loadLocalState();
+tryApplySharedSetlistFromUrl();
 
 // 初期計算
 recalcTimes();
