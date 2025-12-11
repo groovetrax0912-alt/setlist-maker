@@ -20,6 +20,12 @@ import {
   where,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBhBZ_W5FU69d3nuf6MqhWBEwavvGTyPKU",
@@ -33,6 +39,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+const storage = getStorage(app);
 
 const loginBtn   = document.getElementById("loginBtn");
 const logoutBtn  = document.getElementById("logoutBtn");
@@ -69,6 +76,16 @@ async function saveSongForUser(uid, song) {
   return docRef.id;
 }
 
+async function uploadSheetForUser(uid, file) {
+  const safeName = (file?.name || "sheet").replace(/[^\w.-]+/g, "_");
+  const path = `users/${uid}/sheets/${Date.now()}_${safeName}`;
+  const ref = storageRef(storage, path);
+  await uploadBytes(ref, file, {
+    contentType: file.type || "application/octet-stream"
+  });
+  return getDownloadURL(ref);
+}
+
 async function saveLibraryForUser(uid, songs = []) {
   const colRef = collection(db, "users", uid, "songs");
   const ids = [];
@@ -79,6 +96,7 @@ async function saveLibraryForUser(uid, songs = []) {
       title: song.title || "",
       durationSec: song.durationSec || 0,
       url: song.url || "",
+      sheetUrl: song.sheetUrl || "",
       artist: (song.artist || "").trim(),
       order: typeof song.order === "number" ? song.order : i,
       updatedAt: serverTimestamp()
@@ -112,11 +130,14 @@ async function loadSongsForUser(uid, artistName = "") {
 
     const rawUrl = song.url || "";
     const safeUrl = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : (rawUrl ? `https://${rawUrl}` : "");
+    const rawSheet = song.sheetUrl || "";
+    const safeSheet = rawSheet && /^https?:\/\//i.test(rawSheet) ? rawSheet : (rawSheet ? `https://${rawSheet}` : "");
 
     items.push({
       title: song.title || "",
       durationSec: song.durationSec || 0,
       url: safeUrl,
+      sheetUrl: safeSheet,
       artist: songArtist,
       order: typeof song.order === "number" ? song.order : null,
       source: "firestore",
@@ -132,6 +153,8 @@ async function loadSongsForUser(uid, artistName = "") {
     items.forEach((song) => {
       const rawUrl = song.url || "";
       const safeUrl = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : (rawUrl ? `https://${rawUrl}` : "");
+      const rawSheet = song.sheetUrl || "";
+      const safeSheet = rawSheet && /^https?:\/\//i.test(rawSheet) ? rawSheet : (rawSheet ? `https://${rawSheet}` : "");
       const li = document.createElement("li");
       li.className = "song-item";
       li.dataset.duration = String(song.durationSec || 0);
@@ -139,6 +162,7 @@ async function loadSongsForUser(uid, artistName = "") {
       li.dataset.firestoreId = song.firestoreId;
       if (song.artist) li.dataset.artist = song.artist;
       if (safeUrl) li.dataset.url = safeUrl;
+      if (safeSheet) li.dataset.sheetUrl = safeSheet;
 
       li.innerHTML = `
         <div class="song-main">
@@ -146,10 +170,12 @@ async function loadSongsForUser(uid, artistName = "") {
           <div class="song-meta"></div>
         </div>
         <div class="song-right">
-          ${safeUrl ? '<button class="icon-btn link-btn" title="音源を開く">🔗</button>' : ''}
+          ${safeUrl ? '<button class="icon-btn link-btn" title="音源を開く（URL登録時）">🔗</button>' : ''}
+          ${safeSheet ? '<button class="icon-btn sheet-btn" title="譜面を開く（PDF/JPG/PNG）">📑</button>' : ''}
           <div class="song-duration">${window.formatTime?.(song.durationSec || 0) ?? ""}</div>
-          <button class="icon-btn edit-btn" title="この曲を編集">✎</button>
-          <button class="icon-btn delete-btn" title="この曲を削除">✖</button>
+          <button class="icon-btn edit-btn" title="この曲を編集">✏</button>
+          <button class="icon-btn delete-btn" title="この曲を削除">✕</button>
+          <button class="icon-btn add-to-setlist-btn" title="セットリストに追加">▸</button>
         </div>
       `;
       li.querySelector(".song-title").textContent = song.title || "";
@@ -173,6 +199,7 @@ async function updateSongForUser(uid, songId, song) {
     title: song.title || "",
     durationSec: song.durationSec || 0,
     url: song.url || "",
+    sheetUrl: song.sheetUrl || "",
     artist: (song.artist || "").trim(),
     updatedAt: serverTimestamp()
   };
@@ -282,11 +309,15 @@ async function deleteSetlistForUser(uid, setlistId) {
 // --------------------
 // Globals for app.js
 // --------------------
-window._setlistFirebase = { app, auth, db };
+window._setlistFirebase = { app, auth, db, storage };
 
 window.saveSongForCurrentUser = async (song) => {
   if (!auth.currentUser) return null;
   return saveSongForUser(auth.currentUser.uid, song);
+};
+window.uploadSheetForCurrentUser = async (file) => {
+  if (!auth.currentUser) throw new Error("not-auth");
+  return uploadSheetForUser(auth.currentUser.uid, file);
 };
 window.updateSongForCurrentUser = async (songId, song) => {
   if (!auth.currentUser) throw new Error("not-auth");
@@ -372,6 +403,10 @@ onAuthStateChanged(auth, (user) => {
     window.__saveLocalState?.();
   }
 });
+
+
+
+
 
 
 

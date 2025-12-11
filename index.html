@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -44,6 +44,7 @@
         <div class="add-row">
           <input id="newSongTitle" type="text" placeholder="新しい曲名">
           <input id="newSongUrl" type="text" placeholder="音源URL（任意）">
+          <input id="newSongSheetUrl" type="text" placeholder="譜面URL（PDF/JPG/PNG 任意）">
           <input id="newSongDurationCompact" type="text" placeholder="時間（例:0324 や 3:24）">
           <button class="btn btn-small" id="addSongBtn">➕ 曲を追加</button>
         </div>
@@ -152,6 +153,11 @@
           <span>音源URL（任意）</span>
           <input id="editSongUrl" type="url" placeholder="https://">
         </label>
+        <label class="modal-field">
+          <span>譜面ファイル（PDF/JPG/PNG 2MBまで）</span>
+          <input id="editSongSheetFile" type="file" accept=".pdf,image/*">
+          <span class="small muted">アップロードすると譜面リンクが上書きされます</span>
+        </label>
         <div id="editSongError" class="modal-error" aria-live="polite"></div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary btn-small" data-dismiss="edit-song">✖️ キャンセル</button>
@@ -213,3 +219,7 @@
   <script type="module" src="./firebase.js"></script>
 </body>
 </html>
+
+
+
+

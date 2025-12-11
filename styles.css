@@ -111,6 +111,7 @@ label.small, .small{
   font-size:11px;
   color:var(--muted);
 }
+.muted{ color:var(--muted); }
 
 input, select{
   width:100%;
@@ -179,6 +180,7 @@ input::placeholder{ color:#9a918c; }
 .shared-preview .song-item .delete-btn,
 .shared-preview .song-item .link-btn,
 .shared-preview .song-item .edit-btn,
+.shared-preview .song-item .sheet-btn,
 .shared-preview .song-item .add-to-setlist-btn{
   pointer-events:none;
   opacity:.35;

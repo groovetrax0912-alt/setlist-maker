@@ -177,28 +177,31 @@ function removeSetlistEditButtons() {
   setlistEl.querySelectorAll('.edit-btn').forEach(btn => btn.remove());
 }
 
-function createSongLi({ title = '', durationSec = 0, url = '', source = '', firestoreId = '', artist = '', enableEdit = false }) {
+function createSongLi({ title = '', durationSec = 0, url = '', sheetUrl = '', source = '', firestoreId = '', artist = '', enableEdit = false }) {
   const li = document.createElement('li');
   li.className = 'song-item';
   li.dataset.duration = String(durationSec || 0);
   li.dataset.baseTitle = title || '';
   const safeUrl = normalizeUrl(url);
   if (safeUrl) li.dataset.url = safeUrl;
+  const safeSheet = normalizeUrl(sheetUrl);
+  if (safeSheet) li.dataset.sheetUrl = safeSheet;
   if (source) li.dataset.source = source;
   if (firestoreId) li.dataset.firestoreId = firestoreId;
   if (artist) li.dataset.artist = artist;
 
-      li.innerHTML = `
+  li.innerHTML = `
     <div class="song-main">
       <div class="song-title"><span class="song-title-text"></span></div>
       <div class="song-meta"></div>
     </div>
     <div class="song-right">
       ${safeUrl ? '<button class="icon-btn link-btn" title="音源を開く（URL登録時）">🔗</button>' : ''}
+      ${safeSheet ? '<button class="icon-btn sheet-btn" title="譜面を開く（PDF/JPG/PNG）">📑</button>' : ''}
       <div class="song-duration">${formatTime(durationSec || 0)}</div>
-      ${enableEdit ? '<button class="icon-btn edit-btn" title="この曲を編集">✏️</button>' : ''}
-      <button class="icon-btn delete-btn" title="この曲を削除">✖</button>
-      ${enableEdit ? '<button class="icon-btn add-to-setlist-btn" title="セットリストに追加">></button>' : ''}
+      ${enableEdit ? '<button class="icon-btn edit-btn" title="この曲を編集">✏</button>' : ''}
+      <button class="icon-btn delete-btn" title="この曲を削除">✕</button>
+      ${enableEdit ? '<button class="icon-btn add-to-setlist-btn" title="セットリストに追加">▸</button>' : ''}
     </div>
   `;
   const titleSpan = li.querySelector('.song-title-text');
@@ -212,12 +215,14 @@ function appendSongToSetlistFromLibrary(li) {
     title: getLiTitleText(li),
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
+    sheetUrl: li.dataset.sheetUrl || '',
     artist: li.dataset.artist || ''
   };
   const newLi = createSongLi({
     title: payload.title,
     durationSec: payload.durationSec,
     url: payload.url,
+    sheetUrl: payload.sheetUrl,
     artist: payload.artist,
     enableEdit: false
   });
@@ -241,6 +246,7 @@ function renderSongLibraryFromData(items = []) {
       title: song.title || '',
       durationSec: song.durationSec || 0,
       url: song.url || '',
+      sheetUrl: song.sheetUrl || '',
       source: song.source || '',
       firestoreId: song.firestoreId || '',
       artist: song.artist || '',
@@ -309,6 +315,7 @@ function saveLocalState() {
     title: getLiTitleText(li),
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
+    sheetUrl: li.dataset.sheetUrl || '',
     source: li.dataset.source || '',
     firestoreId: li.dataset.firestoreId || '',
     artist: li.dataset.artist || '',
@@ -319,6 +326,7 @@ function saveLocalState() {
     title: getLiTitleText(li),
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
+    sheetUrl: li.dataset.sheetUrl || '',
     artist: li.dataset.artist || ''
   }));
 
@@ -368,36 +376,60 @@ function applyLiveInfoToUI({ title = '', date = '', slotMinutes = 30 } = {}) {
   updateLiveSummaryFromInputs();
 }
 
-function updateSongLiFields(li, { title, durationSec, url }) {
+function updateSongLiFields(li, { title, durationSec, url, sheetUrl }) {
   const titleEl = li.querySelector('.song-title-text') || li.querySelector('.song-title');
   const metaEl = li.querySelector('.song-meta');
   const durationEl = li.querySelector('.song-duration');
   const linkBtn = li.querySelector('.link-btn');
+  const sheetBtn = li.querySelector('.sheet-btn');
   const safeUrl = normalizeUrl(url);
+  const safeSheet = normalizeUrl(sheetUrl);
 
-  li.dataset.baseTitle = title;
-  if (titleEl) titleEl.textContent = title;
-  li.dataset.duration = String(durationSec);
+  li.dataset.baseTitle = title || '';
+  li.dataset.duration = String(durationSec || 0);
+
+  if (titleEl) {
+    if (titleEl.classList.contains('song-title-text')) {
+      titleEl.textContent = title || '';
+    } else {
+      titleEl.textContent = title || '';
+    }
+  }
 
   if (safeUrl) {
     li.dataset.url = safeUrl;
-    if (!linkBtn) {
-      const durationParent = durationEl?.parentElement;
-      if (durationParent) {
-        const btn = document.createElement('button');
-        btn.className = 'icon-btn link-btn';
-        btn.title = '音源を開く（URL登録時）';
-        btn.textContent = '🔗';
-        durationParent.insertBefore(btn, durationEl);
-      }
+    if (!linkBtn && durationEl?.parentElement) {
+      const btn = document.createElement('button');
+      btn.className = 'icon-btn link-btn';
+      btn.title = '音源を開く（URL登録時）';
+      btn.textContent = '🔗';
+      durationEl.parentElement.insertBefore(btn, durationEl);
+    } else if (linkBtn) {
+      linkBtn.textContent = '🔗';
     }
   } else {
     delete li.dataset.url;
     if (linkBtn) linkBtn.remove();
   }
 
+  if (safeSheet) {
+    li.dataset.sheetUrl = safeSheet;
+    if (!sheetBtn && durationEl?.parentElement) {
+      const btn = document.createElement('button');
+      btn.className = 'icon-btn sheet-btn';
+      btn.title = '譜面を開く（PDF/JPG/PNG）';
+      btn.textContent = '📑';
+      durationEl.parentElement.insertBefore(btn, durationEl);
+    } else if (sheetBtn) {
+      sheetBtn.textContent = '📑';
+    }
+  } else {
+    delete li.dataset.sheetUrl;
+    if (sheetBtn) sheetBtn.remove();
+  }
+
   if (metaEl) metaEl.textContent = '';
-  if (durationEl) durationEl.textContent = formatTime(durationSec);
+  if (durationEl) durationEl.textContent = formatTime(durationSec || 0);
 }
 
 function propagateLibraryEditToSetlist(sourceLi, payload, { matchTitle = '', matchArtist = '' } = {}) {
@@ -469,11 +501,11 @@ function findLibraryItemFor(sourceLi, { matchTitle = '', matchArtist = '' } = {}
   return fallback;
 }
 
-async function applySongEdits(li, { title, durationSec, url }) {
+async function applySongEdits(li, { title, durationSec, url, sheetUrl }) {
   const listId = li.parentElement?.id;
   const prevTitle = (li.dataset.baseTitle || li.querySelector('.song-title-text')?.textContent || '').trim();
   const prevArtist = (li.dataset.artist || '').trim();
-  const normalizedPayload = { title, durationSec, url: normalizeUrl(url) };
+  const normalizedPayload = { title, durationSec, url: normalizeUrl(url), sheetUrl: normalizeUrl(sheetUrl) };
 
   updateSongLiFields(li, normalizedPayload);
   saveLocalState();
@@ -488,6 +520,7 @@ async function applySongEdits(li, { title, durationSec, url }) {
       setSetlistDirty(true);
     } else {
       recalcTimes();
+      setSetlistDirty(true);
     }
   } else if (listId === 'songLibrary') {
     const changed = propagateLibraryEditToSetlist(li, normalizedPayload, { matchTitle: prevTitle, matchArtist: prevArtist });
@@ -509,6 +542,7 @@ async function persistSongEditToFirestore(li) {
     title: getLiTitleText(li),
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
+    sheetUrl: li.dataset.sheetUrl || '',
     artist: li.dataset.artist || '',
     order
   };
@@ -555,6 +589,7 @@ function openEditSongModal(li) {
   editSongTitleEl.value = title;
   editSongDurationEl.value = formatTime(currentDuration);
   editSongUrlEl.value = url;
+  if (editSongSheetFileEl) editSongSheetFileEl.value = '';
   showEditSongError('');
 
   editSongModal.classList.remove('hidden');
@@ -676,6 +711,7 @@ function getLibraryItemsWithOrder() {
     title: getLiTitleText(li),
     durationSec: parseInt(li.dataset.duration || '0', 10),
     url: li.dataset.url || '',
+    sheetUrl: li.dataset.sheetUrl || '',
     source: li.dataset.source || '',
     firestoreId: li.dataset.firestoreId || '',
     artist: li.dataset.artist || '',
@@ -689,6 +725,8 @@ const setlistEl     = document.getElementById('setlist');
 
 const newSongTitleEl= document.getElementById('newSongTitle');
 const newSongUrlEl  = document.getElementById('newSongUrl');
+const newSongSheetFileEl = document.getElementById('newSongSheetFile');
+const newSongSheetUploadBtn = document.getElementById('newSongSheetUploadBtn');
 const newSongDurationCompactEl  = document.getElementById('newSongDurationCompact');
 const addSongBtn    = document.getElementById('addSongBtn');
 const saveAllBtn    = document.getElementById('saveAllBtn');
@@ -698,6 +736,7 @@ const editSongForm  = document.getElementById('editSongForm');
 const editSongTitleEl = document.getElementById('editSongTitle');
 const editSongDurationEl = document.getElementById('editSongDuration');
 const editSongUrlEl = document.getElementById('editSongUrl');
+const editSongSheetFileEl = document.getElementById('editSongSheetFile');
 const editSongErrorEl = document.getElementById('editSongError');
 const liveTitleDisplayEl = document.getElementById('liveTitleDisplay');
 const slotMinutesDisplayEl = document.getElementById('slotMinutesDisplay');
@@ -733,6 +772,7 @@ const liveInfoSubmitBtn     = document.getElementById('liveInfoSubmitBtn');
 
 const EMPTY_PLACEHOLDER_CLASS = 'empty-hint';
 const LOCAL_STATE_KEY = 'setlistMakerState';
+const SHEET_MAX_BYTES = 2 * 1024 * 1024; // 2MB
 let hasLocalStateLoaded = false;
 let lastLoadedDraftArtist = '';
 let isApplyingArtistEmptyState = false;
@@ -799,7 +839,26 @@ function buildEmbedUrl(url = '') {
   }
 }
 
-function openAudioPreview(url = '', title = '') {
+async function uploadSheetFile(file) {
+  if (!file) return '';
+  if (file.size > SHEET_MAX_BYTES) {
+    alert('譜面ファイルは2MB以内にしてね');
+    return null;
+  }
+  if (!window.uploadSheetForCurrentUser) {
+    alert('ログインしてからファイルをアップロードしてね');
+    return null;
+  }
+  try {
+    return await window.uploadSheetForCurrentUser(file);
+  } catch (e) {
+    console.error('譜面アップロードエラー:', e);
+    alert('譜面ファイルのアップロードに失敗しました');
+    return null;
+  }
+}
+
+function openAudioPreview(url = '', title = '', label = '音源プレビュー') {
   if (!audioPreviewModal || !audioPreviewFrame) {
     window.open(url, '_blank');
     return;
@@ -810,7 +869,8 @@ function openAudioPreview(url = '', title = '') {
     audioPreviewFrame.src = embed;
   }
   if (audioPreviewTitleEl) {
-    audioPreviewTitleEl.textContent = title ? `音源プレビュー: ${title}` : '音源プレビュー';
+    const base = label || '音源プレビュー';
+    audioPreviewTitleEl.textContent = title ? `${base}: ${title}` : base;
   }
   audioPreviewModal.classList.remove('hidden');
 }
@@ -820,6 +880,15 @@ function closeAudioPreview() {
   audioPreviewFrame.src = '';
   audioPreviewUrl = '';
   audioPreviewModal.classList.add('hidden');
+}
+
+function openSheetPreview(url = '', title = '') {
+  const label = '譜面プレビュー';
+  if (!url) {
+    alert('譜面URLがありません');
+    return;
+  }
+  openAudioPreview(url, title, label);
 }
 
 function updateLiveControlsEnabled() {
@@ -952,6 +1021,7 @@ if (editSongForm) {
     const title = (editSongTitleEl.value || '').trim();
     const durationInput = (editSongDurationEl.value || '').trim();
     const url = (editSongUrlEl.value || '').trim();
+    const sheetFile = editSongSheetFileEl?.files?.[0] || null;
     const parentId = editingSongLi.parentElement?.id;
 
     if (!title) {
@@ -964,11 +1034,24 @@ if (editSongForm) {
       return;
     }
 
-    await applySongEdits(editingSongLi, { title, durationSec: parsedSec, url });
-    if (parentId === 'songLibrary') {
-      await persistSongEditToFirestore(editingSongLi);
+    const submitBtn = editSongForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      let sheetUrl = editingSongLi.dataset.sheetUrl || '';
+      if (sheetFile) {
+        const uploaded = await uploadSheetFile(sheetFile);
+        if (!uploaded) return;
+        sheetUrl = uploaded;
+      }
+
+      await applySongEdits(editingSongLi, { title, durationSec: parsedSec, url, sheetUrl });
+      if (parentId === 'songLibrary') {
+        await persistSongEditToFirestore(editingSongLi);
+      }
+      closeEditSongModal();
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
-    closeEditSongModal();
   });
 }
 
@@ -1114,6 +1197,18 @@ document.addEventListener('click', (event) => {
   openAudioPreview(safeUrl, title);
 });
 
+// 譜面を開く
+document.addEventListener('click', (event) => {
+  const sheetBtn = event.target.closest('.sheet-btn');
+  if (!sheetBtn) return;
+  const item = sheetBtn.closest('.song-item');
+  const url = item?.dataset.sheetUrl;
+  if (!url) return alert('この曲には譜面URLがありません');
+  const safeUrl = normalizeUrl(url);
+  const title = getLiTitleText(item);
+  openSheetPreview(safeUrl, title);
+});
+
 // セットリストクリア
 document.getElementById('clearSetlist').addEventListener('click', ()=>{
   const ok = window.confirm('セットリストを全部クリアしますか？');
@@ -1129,6 +1224,7 @@ document.getElementById('clearSetlist').addEventListener('click', ()=>{
 async function addSong() {
   const title = (newSongTitleEl.value || '').trim();
   const url   = (newSongUrlEl.value || '').trim();
+  const sheetFile = newSongSheetFileEl?.files?.[0] || null;
   const durationRaw = (newSongDurationCompactEl.value || '').trim();
   const artist= (currentArtist || artistSelectEl?.value || '').trim();
 
@@ -1136,47 +1232,80 @@ async function addSong() {
   const totalSec = parseCompactDuration(durationRaw);
   if (totalSec === null || totalSec <= 0) return alert('長さを mm:ss か 0324 のように入力してね');
 
-  const li = createSongLi({
-    title,
-    durationSec: totalSec,
-    url,
-    source: 'local',
-    artist,
-    enableEdit: true
-  });
-  songLibraryEl.appendChild(li);
-  setLibraryDirty(true);
-
-  if (window.saveSongForCurrentUser) {
-    try {
-      const id = await window.saveSongForCurrentUser({
-        title,
-        durationSec: totalSec,
-        url: normalizeUrl(url),
-        artist
-      });
-      if (id) {
-        li.dataset.firestoreId = id;
-        li.dataset.source = 'firestore';
+  if (addSongBtn) addSongBtn.disabled = true;
+  try {
+    const normalizedUrl = normalizeUrl(url);
+    let normalizedSheet = '';
+    if (sheetFile) {
+      const uploaded = await uploadSheetFile(sheetFile);
+      if (!uploaded) {
+        return; // アップロードに失敗したら保存中断
       }
-    } catch (err) {
-      console.error('Firestoreへの曲保存でエラー:', err);
+      normalizedSheet = uploaded;
     }
-  }
+    const li = createSongLi({
+      title,
+      durationSec: totalSec,
+      url: normalizedUrl,
+      sheetUrl: normalizedSheet,
+      source: 'local',
+      artist,
+      enableEdit: true
+    });
+    songLibraryEl.appendChild(li);
+    setLibraryDirty(true);
 
-  newSongTitleEl.value = '';
-  newSongUrlEl.value   = '';
-  newSongDurationCompactEl.value = '';
-  newSongTitleEl.focus();
-  updateEmptyPlaceholders();
-  saveLocalState();
-  await persistLibrarySnapshot();
+    if (window.saveSongForCurrentUser) {
+      try {
+        const id = await window.saveSongForCurrentUser({
+          title,
+          durationSec: totalSec,
+          url: normalizedUrl,
+          sheetUrl: normalizedSheet,
+          artist
+        });
+        if (id) {
+          li.dataset.firestoreId = id;
+          li.dataset.source = 'firestore';
+        }
+      } catch (err) {
+        console.error('Firestoreへの曲保存でエラー:', err);
+      }
+    }
+
+    newSongTitleEl.value = '';
+    newSongUrlEl.value   = '';
+    if (newSongSheetFileEl) newSongSheetFileEl.value = '';
+    if (newSongSheetUploadBtn) newSongSheetUploadBtn.textContent = '📑 譜面をアップロード（任意）';
+    newSongDurationCompactEl.value = '';
+    newSongTitleEl.focus();
+    updateEmptyPlaceholders();
+    saveLocalState();
+    await persistLibrarySnapshot();
+  } finally {
+    if (addSongBtn) addSongBtn.disabled = false;
+  }
 }
 
 addSongBtn.addEventListener('click', addSong);
 if (newSongDurationCompactEl) {
   newSongDurationCompactEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') addSong();
+  });
+}
+if (newSongSheetUploadBtn && newSongSheetFileEl) {
+  const resetSheetBtnLabel = () => {
+    newSongSheetUploadBtn.textContent = '📑 譜面をアップロード（任意）';
+  };
+  resetSheetBtnLabel();
+  newSongSheetUploadBtn.addEventListener('click', () => newSongSheetFileEl.click());
+  newSongSheetFileEl.addEventListener('change', () => {
+    const file = newSongSheetFileEl.files?.[0];
+    if (file) {
+      newSongSheetUploadBtn.textContent = `📑 ${file.name}`;
+    } else {
+      resetSheetBtnLabel();
+    }
   });
 }
 
@@ -1486,7 +1615,8 @@ function getCurrentSetlistPayload() {
   const items = Array.from(setlistEl.querySelectorAll('.song-item')).map(li => ({
     title: getLiTitleText(li),
     durationSec: parseInt(li.dataset.duration || '0', 10),
-    url: li.dataset.url || ''
+    url: li.dataset.url || '',
+    sheetUrl: li.dataset.sheetUrl || ''
   })).filter(x => x.title);
 
   return { title: liveTitle, date: liveDate, slotMinutes, artist, items, liveId: currentLiveId || '' };
@@ -1686,6 +1816,7 @@ function renderSetlistFromData(items = []) {
       title: song.title || '',
       durationSec: song.durationSec || 0,
       url: song.url || '',
+      sheetUrl: song.sheetUrl || '',
       artist: song.artist || '',
       enableEdit: false
     });
@@ -1887,6 +2018,4 @@ tryApplySharedSetlistFromUrl();
 recalcTimes();
 setLibraryDirty(false);
 setSetlistDirty(false);
-
-
 
